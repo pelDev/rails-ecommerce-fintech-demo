@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_27_165143) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_27_172245) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -148,6 +148,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_165143) do
     t.index ["role"], name: "index_users_on_role"
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
     t.check_constraint "role::text = ANY (ARRAY['user'::character varying, 'admin'::character varying, 'super_admin'::character varying]::text[])", name: "users_role_check"
+  end
+
+  create_table "webhook_events", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "event_type"
+    t.datetime "failed_at"
+    t.jsonb "payload", default: "{}", null: false
+    t.datetime "processed_at"
+    t.text "processing_error"
+    t.integer "processing_status", default: 0, null: false
+    t.string "provider"
+    t.string "provider_event_id", null: false
+    t.integer "retry_count", default: 0, null: false
+    t.string "signature", null: false
+    t.string "source_ip"
+    t.datetime "updated_at", null: false
+    t.string "user_agent"
+    t.index ["created_at"], name: "index_webhook_events_on_created_at"
+    t.index ["event_type", "created_at"], name: "index_webhook_events_on_event_type_and_created_at"
+    t.index ["failed_at"], name: "index_webhook_events_on_failed_at", where: "(failed_at IS NOT NULL)"
+    t.index ["processed_at"], name: "index_webhook_events_on_processed_at"
+    t.index ["processing_status"], name: "index_webhook_events_on_processing_status"
+    t.index ["provider", "event_type"], name: "index_webhook_events_on_provider_and_event_type"
+    t.index ["provider_event_id"], name: "index_webhook_events_on_provider_event_id", unique: true
+    t.check_constraint "length(provider_event_id::text) > 0", name: "webhook_events_provider_event_id_not_empty_check"
+    t.check_constraint "processing_status = 3 AND processing_error IS NOT NULL OR processing_status <> 3", name: "webhook_events_error_check"
+    t.check_constraint "processing_status = ANY (ARRAY[0, 1, 2, 3])", name: "webhook_events_status_valid_check"
   end
 
   add_foreign_key "api_credentials", "merchants"
