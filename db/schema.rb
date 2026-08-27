@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_27_172245) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_27_182726) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -57,19 +57,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_172245) do
 
   create_table "orders", force: :cascade do |t|
     t.integer "amount_cents", null: false
+    t.datetime "cancelled_at"
     t.datetime "created_at", null: false
     t.string "currency", default: "USD", null: false
+    t.datetime "delivered_at"
+    t.datetime "expired_at"
     t.string "external_reference"
     t.bigint "merchant_id", null: false
+    t.datetime "paid_at"
+    t.datetime "refunded_at"
+    t.datetime "shipped_at"
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.index ["cancelled_at"], name: "index_orders_on_cancelled_at"
     t.index ["created_at"], name: "index_orders_on_pending_created_at", where: "(status = 0)"
+    t.index ["delivered_at"], name: "index_orders_on_delivered_at"
     t.index ["external_reference"], name: "index_orders_on_external_reference", unique: true
     t.index ["merchant_id", "created_at"], name: "index_orders_on_merchant_completed", where: "(status = 1)"
     t.index ["merchant_id", "created_at"], name: "index_orders_on_merchant_id_and_created_at"
     t.index ["merchant_id", "external_reference"], name: "index_orders_on_merchant_id_and_external_reference"
     t.index ["merchant_id", "status"], name: "index_orders_on_merchant_id_and_status"
     t.index ["merchant_id"], name: "index_orders_on_merchant_id"
+    t.index ["paid_at"], name: "index_orders_on_paid_at"
+    t.index ["refunded_at"], name: "index_orders_on_refunded_at"
     t.index ["status"], name: "index_orders_on_status"
     t.check_constraint "amount_cents > 0", name: "orders_amount_positive_check"
     t.check_constraint "currency::text = ANY (ARRAY['USD'::character varying, 'EUR'::character varying, 'GBP'::character varying, 'JPY'::character varying, 'CAD'::character varying, 'AUD'::character varying, 'CHF'::character varying, 'CNY'::character varying, 'HKD'::character varying, 'NZD'::character varying, 'SEK'::character varying, 'KRW'::character varying, 'SGD'::character varying, 'NOK'::character varying, 'MXN'::character varying, 'INR'::character varying, 'BRL'::character varying, 'ZAR'::character varying, 'TRY'::character varying, 'RUB'::character varying]::text[])", name: "orders_currency_valid_check"
@@ -84,15 +94,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_172245) do
     t.string "card_last_four"
     t.datetime "created_at", null: false
     t.string "currency", default: "USD", null: false
+    t.datetime "failed_at"
     t.string "failure_reason"
     t.string "idempotency_key"
     t.bigint "merchant_id", null: false
     t.bigint "order_id", null: false
     t.string "payment_method"
+    t.datetime "pending_at"
+    t.datetime "processing_at"
     t.string "provider_reference"
+    t.datetime "refunded_at"
+    t.integer "retry_count", default: 0, null: false
     t.integer "status", default: 0, null: false
+    t.datetime "succeeded_at"
     t.datetime "updated_at", null: false
     t.index ["created_at"], name: "index_payments_on_pending_created_at", where: "(status = 0)"
+    t.index ["failed_at"], name: "index_payments_on_failed_at"
     t.index ["idempotency_key"], name: "index_payments_on_idempotency_key", where: "(idempotency_key IS NOT NULL)"
     t.index ["merchant_id", "created_at", "status"], name: "index_payments_on_merchant_id_and_created_at_and_status"
     t.index ["merchant_id", "created_at"], name: "index_payments_on_merchant_completed", where: "(status = 1)"
@@ -104,7 +121,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_172245) do
     t.index ["order_id"], name: "index_payments_on_order_id"
     t.index ["payment_method"], name: "index_payments_on_payment_method"
     t.index ["provider_reference"], name: "index_payments_on_provider_reference", unique: true
+    t.index ["refunded_at"], name: "index_payments_on_refunded_at"
+    t.index ["retry_count"], name: "index_payments_on_retry_count"
     t.index ["status"], name: "index_payments_on_status"
+    t.index ["succeeded_at"], name: "index_payments_on_succeeded_at"
     t.check_constraint "amount_cents > 0", name: "payments_amount_positive_check"
     t.check_constraint "currency::text = ANY (ARRAY['USD'::character varying, 'EUR'::character varying, 'GBP'::character varying, 'JPY'::character varying, 'CAD'::character varying, 'AUD'::character varying, 'CHF'::character varying, 'CNY'::character varying, 'HKD'::character varying, 'NZD'::character varying, 'SEK'::character varying, 'KRW'::character varying, 'SGD'::character varying, 'NOK'::character varying, 'MXN'::character varying, 'INR'::character varying, 'BRL'::character varying, 'ZAR'::character varying, 'TRY'::character varying, 'RUB'::character varying]::text[])", name: "payments_currency_valid_check"
     t.check_constraint "status = 1 AND provider_reference IS NOT NULL OR status <> 1", name: "payments_provider_reference_check"

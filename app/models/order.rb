@@ -1,4 +1,6 @@
 class Order < ApplicationRecord
+  include AASM
+
   # Constants
   CURRENCIES = %w[USD EUR GBP JPY CAD AUD CHF CNY HKD NZD SEK KRW SGD NOK MXN INR BRL ZAR TRY RUB].freeze
   MINIMUM_AMOUNT = 1 # in cents
@@ -36,6 +38,96 @@ class Order < ApplicationRecord
   validate :validate_status_transition, on: :update
   validate :validate_external_reference_format, if: -> { external_reference.present? }
 
+  # AASM State Machine
+  aasm column: :status do
+    # States
+    state :pending, initial: true
+    state :paid
+    state :shipped
+    state :delivered
+    state :cancelled
+    state :refunded
+    state :expired
+
+    # Events
+    event :mark_paid do
+      # Guard: Only pending orders can be paid
+      guards :can_mark_paid?
+
+      before do
+        # Update payment timestamp
+        self.paid_at = Time.current
+      end
+
+      transitions from: :pending, to: :paid
+    end
+
+    event :mark_shipped do
+      # Guard: Only paid orders can be shipped
+      guards :can_mark_shipped?
+
+      before do
+        self.shipped_at = Time.current
+      end
+
+      transitions from: :paid, to: :shipped
+    end
+
+    event :mark_delivered do
+      # Guard: Only shipped orders can be delivered
+      guards :can_mark_delivered?
+
+      before do
+        self.delivered_at = Time.current
+      end
+
+      transitions from: :shipped, to: :delivered
+    end
+
+    event :cancel do
+      # Guard: Only pending or paid orders can be cancelled
+      guards :can_cancel?
+
+      before do
+        self.cancelled_at = Time.current
+      end
+
+      after do
+        # Refund if order was paid
+        refund_payments if paid?
+      end
+
+      transitions from: [ :pending, :paid ], to: :cancelled
+    end
+
+    event :refund do
+      # Guard: Only paid orders can be refunded
+      guards :can_refund?
+
+      before do
+        self.refunded_at = Time.current
+      end
+
+      after do
+        # Refund all payments
+        refund_payments
+      end
+
+      transitions from: :paid, to: :refunded
+    end
+
+    event :expire do
+      # Guard: Only pending orders can expire
+      guards :can_expire?
+
+      before do
+        self.expired_at = Time.current
+      end
+
+      transitions from: :pending, to: :expired
+    end
+  end
+
   # Scopes
   scope :by_merchant, ->(merchant_id) { where(merchant_id: merchant_id) }
   scope :by_status, ->(status) { where(status: status) }
@@ -57,41 +149,36 @@ class Order < ApplicationRecord
   after_create :log_order_creation
   after_update :log_order_status_change, if: -> { saved_change_to_status? }
 
+  # Guards (business rules)
+  def can_mark_paid?
+    pending? && !expired? && payments.successful.exists?
+  end
+
+  def can_mark_shipped?
+    paid? && !cancelled? && !refunded?
+  end
+
+  def can_mark_delivered?
+    shipped? && !cancelled? && !refunded?
+  end
+
+  def can_cancel?
+    (pending? || paid?) && !shipped? && !delivered?
+  end
+
+  def can_refund?
+    paid? && !cancelled? && !refunded?
+  end
+
+  def can_expire?
+    pending? && created_at < 24.hours.ago
+  end
+
+  # Callbacks
+  after_aasm_event :log_state_change
+  after_aasm_event :update_merchant_metrics, if: -> { aasm.to_state == :paid }
+
   # Instance methods
-  def successful_payments
-    payments.successful
-  end
-
-  def failed_payments
-    payments.failed
-  end
-
-  def subtotal
-    order_items.sum(:total_price_cents)
-  end
-
-  def recalculate_total!
-    new_total = order_items.sum(:total_price_cents)
-    update_column(:amount_cents, new_total)
-    new_total
-  end
-
-  def item_count
-    order_items.sum(:quantity)
-  end
-
-  def product_names
-    order_items.pluck(:product_name).join(', ')
-  end
-
-  def pending?
-    status == "pending"
-  end
-
-  def shipped?
-    status == "shipped"
-  end
-
   def total_amount
     amount_cents / 100.0
   end
@@ -101,7 +188,7 @@ class Order < ApplicationRecord
   end
 
   def paid?
-    status.in?([ "paid", "shipped", "delivered" ])
+    status == "paid"
   end
 
   def completed?
@@ -120,80 +207,89 @@ class Order < ApplicationRecord
     status.humanize
   end
 
-  def mark_as_paid!
-    return false unless pending?
-    update!(status: :paid)
+  def subtotal
+    order_items.sum(:total_price_cents)
   end
 
-  def mark_as_shipped!
-    return false unless paid?
-    update!(status: :shipped)
+  def recalculate_total!
+    new_total = order_items.sum(:total_price_cents)
+    update_column(:amount_cents, new_total)
+    new_total
   end
 
-  def mark_as_delivered!
-    return false unless shipped?
-    update!(status: :delivered)
+  def item_count
+    order_items.sum(:quantity)
   end
 
-  def cancel!
-    return false unless cancellable?
-    update!(status: :cancelled)
+  def product_names
+    order_items.pluck(:product_name).join(", ")
   end
 
-  def refund!
-    return false unless refundable?
-    transaction do
-      update!(status: :refunded)
-      payments.each { |payment| payment.refund! }
-    end
+  def total_paid
+    payments.completed.sum(:amount_cents)
+  end
+
+  def fully_paid?
+    total_paid >= amount_cents
+  end
+
+  def payment_status
+    return "unpaid" if payments.empty?
+    return "partially_paid" if total_paid < amount_cents && total_paid > 0
+    return "paid" if fully_paid?
+    "overpaid" if total_paid > amount_cents
+  end
+
+  def latest_payment
+    payments.order(created_at: :desc).first
+  end
+
+  def successful_payments
+    payments.successful
+  end
+
+  def failed_payments
+    payments.failed
   end
 
   # Class Methods
   class << self
     def total_revenue(currency = "USD")
-      completed.where(currency: currency).sum(:amount_cents)
+      where(status: [ :paid, :shipped, :delivered ])
+        .where(currency: currency)
+        .sum(:amount_cents)
     end
 
     def average_order_value(currency = "USD")
-      completed.where(currency: currency).average(:amount_cents)&.to_i || 0
+      where(status: [ :paid, :shipped, :delivered ])
+        .where(currency: currency)
+        .average(:amount_cents)&.to_i || 0
     end
 
     def monthly_revenue(month, year, currency = "USD")
       start_date = Date.new(year, month, 1)
       end_date = start_date.end_of_month
-      completed
-        .by_currency(currency)
-        .by_date_range(start_date, end_date)
+      where(status: [ :paid, :shipped, :delivered ])
+        .where(currency: currency)
+        .where(created_at: start_date..end_date)
         .sum(:amount_cents)
     end
 
     def revenue_by_merchant(merchant_id, currency = "USD")
-      completed
+      where(status: [ :paid, :shipped, :delivered ])
         .by_merchant(merchant_id)
-        .by_currency(currency)
+        .where(currency: currency)
         .sum(:amount_cents)
+    end
+
+    def expire_pending_orders!
+      where(status: :pending)
+        .where("created_at < ?", 24.hours.ago)
+        .find_each(&:expire!)
     end
   end
 
   private
-
-  def validate_status_transition
-    return if status_was.nil? || status.nil?
-
-    # Define valid transitions
-    valid_transitions = {
-      "pending" => [ "paid", "cancelled"],
-      "paid" => [ "shipped", "cancelled", "refunded" ],
-      "shipped" => [ "delivered" ],
-      "delivered" => [],
-      "cancelled" => [],
-      "refunded" => []
-    }
-
-    if valid_transitions[status_was] && !valid_transitions[status_was].include?(status)
-      errors.add(:status, "cannot transition from #{status_was} to #{status}")
-    end
-  end
 
   def validate_external_reference_format
     unless external_reference.match?(/\A[a-zA-Z0-9\-_]+\z/)
@@ -201,12 +297,17 @@ class Order < ApplicationRecord
     end
   end
 
-  def normalize_currency
-    self.currency = currency.to_s.upcase if currency.present?
+  def log_state_change
+    Rails.logger.info "Order #{id} state changed: #{aasm.from_state} -> #{aasm.to_state}"
   end
 
-  def normalize_external_reference
-    self.external_reference = external_reference.strip.presence if external_reference.present?
+  def update_merchant_metrics
+    # Update merchant metrics when order is paid
+    merchant.update_last_order_metrics! if merchant.respond_to?(:update_last_order_metrics!)
+  end
+
+  def refund_payments
+    payments.completed.find_each(&:refund!)
   end
 
   def log_order_creation
