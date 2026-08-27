@@ -57,6 +57,9 @@ group :development, :test do
 
   # For testing
   gem "rspec-rails", "~> 6.0.0"
+
+  gem "rubocop", require: false
+  gem "rubocop-rails", require: false
 end
 
 group :development do
@@ -69,3 +72,5 @@ group :test do
   gem "capybara"
   gem "selenium-webdriver"
 end
+
+gem "devise", "~> 5.0"
