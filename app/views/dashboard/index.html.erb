@@ -1,4 +1,81 @@
-<div>
-  <h1 class="font-bold text-4xl">Dashboard#index</h1>
-  <p>Find me in app/views/dashboard/index.html.erb</p>
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="md:flex md:items-center md:justify-between mb-8">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900"><%= @merchant.name %> Dashboard</h1>
+      <p class="text-sm text-gray-500">Welcome back, <%= current_user.first_name %></p>
+    </div>
+  </div>
+
+  <%# Metric Cards %>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+      <p class="text-sm font-medium text-gray-500">Total Processed Volume</p>
+      <p class="text-3xl font-bold text-gray-900 mt-2">
+        <%= number_to_currency(@total_volume_cents / 100.0, unit: "$") %>
+      </p>
+    </div>
+
+    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+      <p class="text-sm font-medium text-gray-500">Pending Orders</p>
+      <p class="text-3xl font-bold text-yellow-600 mt-2"><%= @pending_orders_count %></p>
+    </div>
+
+    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+      <p class="text-sm font-medium text-gray-500">Successful Payments</p>
+      <p class="text-3xl font-bold text-green-600 mt-2"><%= @successful_payments_count %></p>
+    </div>
+  </div>
+
+  <%# Activity Tables Grid %>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <%# Recent Orders %>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Orders</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-gray-500">
+          <thead class="bg-gray-50 text-xs text-gray-700 uppercase">
+            <tr>
+              <th class="px-4 py-2">Ref</th>
+              <th class="px-4 py-2">Amount</th>
+              <th class="px-4 py-2">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @recent_orders.each do |order| %>
+              <tr class="border-b">
+                <td class="px-4 py-3 font-mono text-xs"><%= order.external_reference || order.id %></td>
+                <td class="px-4 py-3"><%= number_to_currency(order.amount_cents / 100.0) %></td>
+                <td class="px-4 py-3"><%= order.status %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <%# Recent Payments %>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Payments</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-gray-500">
+          <thead class="bg-gray-50 text-xs text-gray-700 uppercase">
+            <tr>
+              <th class="px-4 py-2">ID</th>
+              <th class="px-4 py-2">Amount</th>
+              <th class="px-4 py-2">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @recent_payments.each do |payment| %>
+              <tr class="border-b">
+                <td class="px-4 py-3 font-mono text-xs"><%= payment.id %></td>
+                <td class="px-4 py-3"><%= number_to_currency(payment.amount_cents / 100.0) %></td>
+                <td class="px-4 py-3"><%= payment.status %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>

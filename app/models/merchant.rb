@@ -3,6 +3,7 @@ class Merchant < ApplicationRecord
   has_many :api_credentials, dependent: :destroy
   has_many :users, dependent: :destroy
   has_many :orders, dependent: :destroy
+  has_many :payments, dependent: :destroy
 
   # Enum definition for status
   enum :status, {

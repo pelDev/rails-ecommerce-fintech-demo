@@ -48,100 +48,76 @@ class Payment < ApplicationRecord
     state :failed
     state :refunded
 
+    # Log after any transition
+    after_all_transitions :log_state_change
+    after_all_transitions :update_order_status, if: -> { aasm.to_state == :succeeded }
+
     # Events
     event :mark_pending do
-      # Guard: Only created payments can become pending
-      guards :can_mark_pending?
-
       before do
         self.pending_at = Time.current
       end
 
-      transitions from: :created, to: :pending
+      transitions from: :created, to: :pending, guard: :can_mark_pending?
     end
 
     event :mark_processing do
-      # Guard: Only pending payments can be processed
-      guards :can_mark_processing?
-
       before do
         self.processing_at = Time.current
       end
 
       after do
-        # Notify merchant that payment is processing
         notify_merchant(:processing)
       end
 
-      transitions from: [ :created, :pending ], to: :processing
+      transitions from: [:created, :pending], to: :processing, guard: :can_mark_processing?
     end
 
     event :succeed do
-      # Guard: Only processing payments can succeed
-      guards :can_succeed?
-
       before do
         self.succeeded_at = Time.current
         self.provider_reference = @provider_reference if @provider_reference
       end
 
       after do
-        # Update order status
         order.mark_paid! if order.may_mark_paid?
-        # Send success notification
         notify_merchant(:success)
-        # Log success
         log_payment_success
       end
 
-      transitions from: [ :processing, :pending ], to: :succeeded
+      transitions from: [:processing, :pending], to: :succeeded, guard: :can_succeed?
     end
 
     event :fail do
-      # Guard: Can fail from created, pending, or processing
-      guards :can_fail?
-
       before do
         self.failed_at = Time.current
         self.failure_reason = @failure_reason if @failure_reason
       end
 
       after do
-        # Notify merchant of failure
         notify_merchant(:failure)
-        # Log failure
         log_payment_failure
-        # Increment retry count
         increment_retry_count
       end
 
-      transitions from: [ :created, :pending, :processing ], to: :failed
+      transitions from: [:created, :pending, :processing], to: :failed, guard: :can_fail?
     end
 
     event :refund do
-      # Guard: Only succeeded payments can be refunded
-      guards :can_refund?
-
       before do
         self.refunded_at = Time.current
       end
 
       after do
-        # Update order status if needed
         order.refund! if order.may_refund?
-        # Notify merchant
         notify_merchant(:refund)
-        # Log refund
         log_payment_refund
       end
 
-      transitions from: :succeeded, to: :refunded
+      transitions from: :succeeded, to: :refunded, guard: :can_refund?
     end
 
     event :retry do
-      # Guard: Only failed payments can be retried
-      guards :can_retry?
-
       before do
         self.retry_count += 1
         self.failed_at = nil
@@ -149,11 +125,10 @@ class Payment < ApplicationRecord
       end
 
       after do
-        # Queue for reprocessing
         PaymentProcessorJob.perform_later(id)
       end
 
-      transitions from: :failed, to: :pending
+      transitions from: :failed, to: :pending, guard: :can_retry?
     end
   end
 
@@ -181,10 +156,6 @@ class Payment < ApplicationRecord
   def can_retry?
     failed? && retry_count < 3
   end
-
-  # Callbacks
-  after_aasm_event :log_state_change
-  after_aasm_event :update_order_status, if: -> { aasm.to_state == :succeeded }
 
   # Instance methods
   def amount

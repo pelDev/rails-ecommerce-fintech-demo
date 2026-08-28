@@ -5,16 +5,6 @@ class Order < ApplicationRecord
   CURRENCIES = %w[USD EUR GBP JPY CAD AUD CHF CNY HKD NZD SEK KRW SGD NOK MXN INR BRL ZAR TRY RUB].freeze
   MINIMUM_AMOUNT = 1 # in cents
 
-  # Enums
-  enum :status, {
-    pending: 0,
-    paid: 1,
-    shipped: 2,
-    delivered: 3,
-    cancelled: 4,
-    refunded: 5
-  }, prefix: true, scopes: true
-
   # Associations
   belongs_to :merchant
   has_many :order_items, dependent: :destroy
@@ -31,7 +21,7 @@ class Order < ApplicationRecord
     less_than_or_equal_to: 999_999_999 # $9,999,999.99 max
   }
   validates :currency, presence: true, inclusion: { in: CURRENCIES }
-  validates :status, presence: true, inclusion: { in: statuses.keys }
+  validates :status, presence: true
   validates :external_reference, uniqueness: true, allow_nil: true, length: { maximum: 255 }
 
   # Custom validations
@@ -49,82 +39,40 @@ class Order < ApplicationRecord
     state :refunded
     state :expired
 
+    after_all_transitions :log_state_change
+    after_all_transitions :update_merchant_metrics, if: -> { aasm.to_state == :paid }
+
     # Events
     event :mark_paid do
-      # Guard: Only pending orders can be paid
-      guards :can_mark_paid?
-
-      before do
-        # Update payment timestamp
-        self.paid_at = Time.current
-      end
-
-      transitions from: :pending, to: :paid
+      before { self.paid_at = Time.current }
+      transitions from: :pending, to: :paid, guard: :can_mark_paid?
     end
 
     event :mark_shipped do
-      # Guard: Only paid orders can be shipped
-      guards :can_mark_shipped?
-
-      before do
-        self.shipped_at = Time.current
-      end
-
-      transitions from: :paid, to: :shipped
+      before { self.shipped_at = Time.current }
+      transitions from: :paid, to: :shipped, guard: :can_mark_shipped?
     end
 
     event :mark_delivered do
-      # Guard: Only shipped orders can be delivered
-      guards :can_mark_delivered?
-
-      before do
-        self.delivered_at = Time.current
-      end
-
-      transitions from: :shipped, to: :delivered
+      before { self.delivered_at = Time.current }
+      transitions from: :shipped, to: :delivered, guard: :can_mark_delivered?
     end
 
     event :cancel do
-      # Guard: Only pending or paid orders can be cancelled
-      guards :can_cancel?
-
-      before do
-        self.cancelled_at = Time.current
-      end
-
-      after do
-        # Refund if order was paid
-        refund_payments if paid?
-      end
-
-      transitions from: [ :pending, :paid ], to: :cancelled
+      before { self.cancelled_at = Time.current }
+      after { refund_payments if paid? }
+      transitions from: [:pending, :paid], to: :cancelled, guard: :can_cancel?
     end
 
     event :refund do
-      # Guard: Only paid orders can be refunded
-      guards :can_refund?
-
-      before do
-        self.refunded_at = Time.current
-      end
-
-      after do
-        # Refund all payments
-        refund_payments
-      end
-
-      transitions from: :paid, to: :refunded
+      before { self.refunded_at = Time.current }
+      after { refund_payments }
+      transitions from: :paid, to: :refunded, guard: :can_refund?
     end
 
     event :expire do
-      # Guard: Only pending orders can expire
-      guards :can_expire?
-
-      before do
-        self.expired_at = Time.current
-      end
-
-      transitions from: :pending, to: :expired
+      before { self.expired_at = Time.current }
+      transitions from: :pending, to: :expired, guard: :can_expire?
     end
   end
 
@@ -173,10 +121,6 @@ class Order < ApplicationRecord
   def can_expire?
     pending? && created_at < 24.hours.ago
   end
-
-  # Callbacks
-  after_aasm_event :log_state_change
-  after_aasm_event :update_merchant_metrics, if: -> { aasm.to_state == :paid }
 
   # Instance methods
   def total_amount

@@ -3,28 +3,27 @@ class DashboardController < ApplicationController
   before_action :authenticate_user!
 
   # Load merchant-specific data
-  before_action :load_merchant_data, only: [ :index, :analytics, :recent_orders, :payment_metrics ]
+  before_action :load_merchant_data
 
   # Dashboard main page
   def index
-    # @merchant is loaded by load_merchant_data
-  end
+    # Metric cards scoped strictly to current merchant
+    @total_volume_cents = @merchant.payments.where(status: 1).sum(:amount_cents) # Succeeded status
+    @pending_orders_count = @merchant.orders.where(status: 0).count
+    @successful_payments_count = @merchant.payments.where(status: 1).count
 
-  # Analytics page
-  def analytics
-    @revenue_by_day
+    # Recent Data Tables (with eager loading to prevent N+1 queries)
+    @recent_orders = @merchant.orders.order(created_at: :desc).limit(5)
+    @recent_payments = @merchant.payments.includes(:order).order(created_at: :desc).limit(5)
+
+    # Key status for quick developer check
+    @active_api_credential = @merchant.api_credentials.active.first
   end
 
   private
 
   def load_merchant_data
-    # Ensure user belongs to a merchant
-    unless current_user.merchant
-      redirect_to onboarding_path, alert: "Please set up your merchant profile first"
-      return
-    end
-
+    redirect_to new_user_registration_path, alert: "No merchant record found." unless current_user&.merchant
     @merchant = current_user.merchant
-    @user = current_user
   end
 end
