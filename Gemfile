@@ -80,3 +80,5 @@ gem "aasm", "~> 6.0"
 gem "pundit", "~> 2.5"
 
 gem "rack-attack", "~> 6.8"
+
+gem "solargraph", "~> 0.60.1"

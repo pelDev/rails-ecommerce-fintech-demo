@@ -11,6 +11,19 @@ Rails.application.routes.draw do
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
+  namespace :api, defaults: { format: :json } do
+    namespace :v1 do
+      resources :orders, only: [:index, :create] do
+        collection do
+          get :ping
+        end
+      end
+
+      # Expose endpoint to generate/manage API credentials
+      resources :api_credentials, only: [:create, :index, :destroy]
+    end
+  end
+
   # Defines the root path route ("/")
-  # root "posts#index"
+  root "dashboard#index"
 end

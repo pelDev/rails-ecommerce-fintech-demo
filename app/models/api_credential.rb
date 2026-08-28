@@ -1,4 +1,6 @@
 class ApiCredential < ApplicationRecord
+  attr_reader :raw_secret
+
   # Associations
   belongs_to :merchant
 
@@ -22,7 +24,7 @@ class ApiCredential < ApplicationRecord
   scope :active, -> { where(active: true, revoked_at: nil) }
   scope :revoked, -> { where(revoked_at: nil).where.not(active: false) }
   scope :for_merchant, ->(merchant_id) { where(merchant_id: merchant_id) }
-  scope :expiring_soon, -> { where("created_at < ?", 90.days.ago) }
+  scope :expiring_soon, -> { where(created_at: 83.days.ago..90.days.ago) }
 
   # Callbacks
   before_validation :generate_key_and_secret, on: :create
@@ -30,7 +32,7 @@ class ApiCredential < ApplicationRecord
 
   # Instance methods
   def active?
-    active == true && revoked_at.nil?
+    active == true && revoked_at.nil? && !expired?
   end
 
   def revoked?
@@ -64,7 +66,8 @@ class ApiCredential < ApplicationRecord
       return nil unless credential&.active?
 
       # Use secure comparison to prevent timing attacks
-      return credential if BCrypt::Password.new(credential.secret_digest) == secret
+      password = BCrypt::Password.new(credential.secret_digest)
+      return credential if password == secret
 
       nil
     rescue BCrypt::Errors::InvalidHash
@@ -81,12 +84,11 @@ class ApiCredential < ApplicationRecord
   end
 
   def generate_key_and_secret
-    self.key = self.class.generate_api_key
-    secret = self.class.generate_secret
-    self.secret_digest = BCrypt::Password.create(secret, cost: 12)
-
-    # Store the raw secret in an instance variable for logging/display
-    @raw_secret = secret
+    return if key.present? && secret_digest.present?
+    
+    self.key ||= self.class.generate_api_key
+    @raw_secret = self.class.generate_secret
+    self.secret_digest = BCrypt::Password.create(@raw_secret, cost: 12).to_s
   end
 
   def revoked_at_implies_inactive
