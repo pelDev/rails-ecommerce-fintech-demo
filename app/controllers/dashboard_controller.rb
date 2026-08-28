@@ -8,9 +8,9 @@ class DashboardController < ApplicationController
   # Dashboard main page
   def index
     # Metric cards scoped strictly to current merchant
-    @total_volume_cents = @merchant.payments.where(status: 1).sum(:amount_cents) # Succeeded status
-    @pending_orders_count = @merchant.orders.where(status: 0).count
-    @successful_payments_count = @merchant.payments.where(status: 1).count
+    @total_volume_cents = @merchant.payments.successful.sum(:amount_cents) # Succeeded status
+    @pending_orders_count = @merchant.orders.where(status: :pending).count
+    @successful_payments_count = @merchant.payments.successful.count
 
     # Recent Data Tables (with eager loading to prevent N+1 queries)
     @recent_orders = @merchant.orders.order(created_at: :desc).limit(5)
