@@ -15,15 +15,5 @@ class DashboardController < ApplicationController
     # Recent Data Tables (with eager loading to prevent N+1 queries)
     @recent_orders = @merchant.orders.order(created_at: :desc).limit(5)
     @recent_payments = @merchant.payments.includes(:order).order(created_at: :desc).limit(5)
-
-    # Key status for quick developer check
-    @active_api_credential = @merchant.api_credentials.active.first
-  end
-
-  private
-
-  def load_merchant_data
-    redirect_to new_user_registration_path, alert: "No merchant record found." unless current_user&.merchant
-    @merchant = current_user.merchant
   end
 end

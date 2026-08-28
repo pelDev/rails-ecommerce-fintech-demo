@@ -48,7 +48,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_182726) do
     t.datetime "updated_at", null: false
     t.index ["order_id"], name: "index_order_items_on_order_id"
     t.index ["product_name"], name: "index_order_items_on_product_name"
-    t.check_constraint "currency::text = ANY (ARRAY['USD'::character varying, 'EUR'::character varying, 'GBP'::character varying, 'JPY'::character varying, 'CAD'::character varying, 'AUD'::character varying, 'CHF'::character varying, 'CNY'::character varying, 'HKD'::character varying, 'NZD'::character varying, 'SEK'::character varying, 'KRW'::character varying, 'SGD'::character varying, 'NOK'::character varying, 'MXN'::character varying, 'INR'::character varying, 'BRL'::character varying, 'ZAR'::character varying, 'TRY'::character varying, 'RUB'::character varying]::text[])", name: "order_items_currency_valid_check"
+    t.check_constraint "currency::text = ANY (ARRAY['USD'::character varying::text, 'EUR'::character varying::text, 'GBP'::character varying::text, 'JPY'::character varying::text, 'CAD'::character varying::text, 'AUD'::character varying::text, 'CHF'::character varying::text, 'CNY'::character varying::text, 'HKD'::character varying::text, 'NZD'::character varying::text, 'SEK'::character varying::text, 'KRW'::character varying::text, 'SGD'::character varying::text, 'NOK'::character varying::text, 'MXN'::character varying::text, 'INR'::character varying::text, 'BRL'::character varying::text, 'ZAR'::character varying::text, 'TRY'::character varying::text, 'RUB'::character varying::text])", name: "order_items_currency_valid_check"
     t.check_constraint "quantity > 0", name: "order_items_quantity_positive_check"
     t.check_constraint "total_price_cents = (quantity * unit_price_cents)", name: "order_items_total_price_calculation_check"
     t.check_constraint "total_price_cents > 0", name: "order_items_total_price_positive_check"
@@ -82,7 +82,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_182726) do
     t.index ["refunded_at"], name: "index_orders_on_refunded_at"
     t.index ["status"], name: "index_orders_on_status"
     t.check_constraint "amount_cents > 0", name: "orders_amount_positive_check"
-    t.check_constraint "currency::text = ANY (ARRAY['USD'::character varying, 'EUR'::character varying, 'GBP'::character varying, 'JPY'::character varying, 'CAD'::character varying, 'AUD'::character varying, 'CHF'::character varying, 'CNY'::character varying, 'HKD'::character varying, 'NZD'::character varying, 'SEK'::character varying, 'KRW'::character varying, 'SGD'::character varying, 'NOK'::character varying, 'MXN'::character varying, 'INR'::character varying, 'BRL'::character varying, 'ZAR'::character varying, 'TRY'::character varying, 'RUB'::character varying]::text[])", name: "orders_currency_valid_check"
+    t.check_constraint "currency::text = ANY (ARRAY['USD'::character varying::text, 'EUR'::character varying::text, 'GBP'::character varying::text, 'JPY'::character varying::text, 'CAD'::character varying::text, 'AUD'::character varying::text, 'CHF'::character varying::text, 'CNY'::character varying::text, 'HKD'::character varying::text, 'NZD'::character varying::text, 'SEK'::character varying::text, 'KRW'::character varying::text, 'SGD'::character varying::text, 'NOK'::character varying::text, 'MXN'::character varying::text, 'INR'::character varying::text, 'BRL'::character varying::text, 'ZAR'::character varying::text, 'TRY'::character varying::text, 'RUB'::character varying::text])", name: "orders_currency_valid_check"
     t.check_constraint "external_reference IS NULL OR length(TRIM(BOTH FROM external_reference)) > 0", name: "orders_external_reference_not_empty_check"
     t.check_constraint "status = ANY (ARRAY[0, 1, 2, 3, 4, 5])", name: "orders_status_valid_check"
   end
@@ -126,7 +126,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_182726) do
     t.index ["status"], name: "index_payments_on_status"
     t.index ["succeeded_at"], name: "index_payments_on_succeeded_at"
     t.check_constraint "amount_cents > 0", name: "payments_amount_positive_check"
-    t.check_constraint "currency::text = ANY (ARRAY['USD'::character varying, 'EUR'::character varying, 'GBP'::character varying, 'JPY'::character varying, 'CAD'::character varying, 'AUD'::character varying, 'CHF'::character varying, 'CNY'::character varying, 'HKD'::character varying, 'NZD'::character varying, 'SEK'::character varying, 'KRW'::character varying, 'SGD'::character varying, 'NOK'::character varying, 'MXN'::character varying, 'INR'::character varying, 'BRL'::character varying, 'ZAR'::character varying, 'TRY'::character varying, 'RUB'::character varying]::text[])", name: "payments_currency_valid_check"
+    t.check_constraint "currency::text = ANY (ARRAY['USD'::character varying::text, 'EUR'::character varying::text, 'GBP'::character varying::text, 'JPY'::character varying::text, 'CAD'::character varying::text, 'AUD'::character varying::text, 'CHF'::character varying::text, 'CNY'::character varying::text, 'HKD'::character varying::text, 'NZD'::character varying::text, 'SEK'::character varying::text, 'KRW'::character varying::text, 'SGD'::character varying::text, 'NOK'::character varying::text, 'MXN'::character varying::text, 'INR'::character varying::text, 'BRL'::character varying::text, 'ZAR'::character varying::text, 'TRY'::character varying::text, 'RUB'::character varying::text])", name: "payments_currency_valid_check"
     t.check_constraint "status = 1 AND provider_reference IS NOT NULL OR status <> 1", name: "payments_provider_reference_check"
     t.check_constraint "status = 3 AND failure_reason IS NOT NULL OR status <> 3 AND failure_reason IS NULL", name: "payments_failure_reason_check"
     t.check_constraint "status = ANY (ARRAY[0, 1, 2, 3, 4])", name: "payments_status_valid_check"
@@ -167,7 +167,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_182726) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["role"], name: "index_users_on_role"
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
-    t.check_constraint "role::text = ANY (ARRAY['user'::character varying, 'admin'::character varying, 'super_admin'::character varying]::text[])", name: "users_role_check"
+    t.check_constraint "role::text = ANY (ARRAY['user'::character varying::text, 'admin'::character varying::text, 'super_admin'::character varying::text])", name: "users_role_check"
   end
 
   create_table "webhook_events", force: :cascade do |t|

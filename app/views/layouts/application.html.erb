@@ -23,8 +23,24 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body>
-    <main class="container mx-auto mt-28 px-5 flex">
+  <body class="h-full flex flex-col text-gray-900">
+    <% if user_signed_in? %>
+      <%= render "layouts/navbar" %>
+      
+      <!-- Flash Messages -->
+      <% if flash.any? %>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 w-full">
+          <% flash.each do |type, message| %>
+            <div class="p-4 rounded-md mb-2 text-sm font-medium border <%= type == 'notice' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200' %>">
+              <%= message %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
+
+
+    <main class="flex-1">
       <%= yield %>
     </main>
   </body>
