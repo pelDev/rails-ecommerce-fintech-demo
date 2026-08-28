@@ -1,0 +1,56 @@
+# syntax=docker/dockerfile:1
+
+# Development image for the local Docker Compose stack
+# (docker-compose.yml -> web.build.dockerfile).
+#
+# Deliberately NOT the production Dockerfile, which is tuned for Kamal:
+#   * production image strips the development/test gem groups (BUNDLE_WITHOUT),
+#     bakes in RAILS_ENV=production, and precompiles assets — none of which suit
+#     a local dev loop (rspec/rubocop would be missing, boot would target the
+#     production database config, assets would be stale).
+#   * this image installs ALL gem groups, defaults to RAILS_ENV=development,
+#     and compiles Tailwind on the fly at container start.
+#   * it runs as root so bind-mounted code/tmp/log writes behave on host
+#     filesystems (fine for a local-only dev image; the prod image stays
+#     non-root for deployment).
+#
+# Build (normally done through docker-compose.yml):
+#   docker compose up --build -d
+
+FROM docker.io/library/ruby:3.4.10-slim
+
+# System dependencies: build tools for native gems, libpq for the pg gem,
+# libyaml for psych, git for Gemfile git sources, libvips for Active Storage
+# variants, postgresql-client for db tasks and debugging.
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y \
+      build-essential \
+      curl \
+      git \
+      libpq-dev \
+      libvips \
+      libyaml-dev \
+      pkg-config \
+      postgresql-client \
+    && rm -rf /var/lib/apt/lists /var/cache/apt/archives
+
+ENV RAILS_ENV=development \
+    BUNDLE_PATH=/usr/local/bundle
+
+WORKDIR /rails
+
+# Install gems first so dependency layers are cached across rebuilds.
+# No BUNDLE_WITHOUT: rspec, rubocop, brakeman, debug etc. must be available
+# in the container for `docker compose exec web bundle exec rspec`.
+COPY Gemfile Gemfile.lock ./
+RUN bundle install && \
+    rm -rf ~/.bundle /usr/local/bundle/ruby/*/cache /usr/local/bundle/ruby/*/bundler/gems/*/.git
+
+# Copy the application. NOTE: docker-compose.yml bind-mounts ./ over /rails,
+# so code changes are picked up without rebuilding; this COPY only matters
+# when the image is built/run without the bind mount.
+COPY . .
+
+EXPOSE 3000
+
+CMD ["./bin/rails", "server", "-b", "0.0.0.0"]

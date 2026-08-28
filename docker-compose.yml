@@ -1,0 +1,68 @@
+# Docker Compose for local development.
+# web is built from Dockerfile.dev (NOT the production Dockerfile, which strips
+# dev/test gems and is reserved for Kamal). `.:/rails` is bind-mounted for hot
+# reload; Gemfile/Gemfile.lock changes still need `docker compose build web`.
+name: ecommerce-demo
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ecommerce_demo_development
+    ports:
+      - "5432:5432" # convenience for host-side psql
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U postgres -d ecommerce_demo_development"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: >
+      sh -c "./bin/rails db:prepare &&
+             ./bin/rails tailwindcss:build &&
+             ./bin/rails server -b 0.0.0.0 -p 3000"
+    ports:
+      - "3000:3000"
+    environment:
+      RAILS_ENV: development
+      DATABASE_URL: postgres://postgres:postgres@db:5432/ecommerce_demo_development
+      RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:-}
+    volumes:
+      - .:/rails # hot reload: code changes need no rebuild
+      - ./config/master.key:/rails/config/master.key:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    stdin_open: true
+    tty: true
+
+  # Optional SolidQueue worker — only needed if you switch development to the
+  # solid_queue adapter (config.active_job.queue_adapter = :solid_queue) or run a
+  # production-like stack. With the default :async adapter, jobs run in-process.
+  # worker:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.dev
+  #   command: ["bundle", "exec", "solid_queue:start"]
+  #   environment:
+  #     RAILS_ENV: development
+  #     DATABASE_URL: postgres://postgres:postgres@db:5432/ecommerce_demo_development
+  #     RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:-}
+  #   volumes:
+  #     - .:/rails
+  #     - ./config/master.key:/rails/config/master.key:ro
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+
+volumes:
+  pgdata:

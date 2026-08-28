@@ -26,7 +26,7 @@ class Api::V1::PaymentsController < Api::V1::BaseController
     private
 
     def find_order
-        @order = current_user.merchant.orders.find(params[:order_id])
+        @order = current_merchant.orders.find(params[:order_id])
     rescue ActiveRecord::RecordNotFound
         render json: { error: 'Order not found' }, status: :not_found
     end
