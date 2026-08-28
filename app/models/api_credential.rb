@@ -66,11 +66,11 @@ class ApiCredential < ApplicationRecord
       return nil unless credential&.active?
 
       # Use secure comparison to prevent timing attacks
-      password = BCrypt::Password.new(credential.secret_digest)
+      password = ::BCrypt::Password.new(credential.secret_digest)
       return credential if password == secret
 
       nil
-    rescue BCrypt::Errors::InvalidHash
+    rescue ::BCrypt::Errors::InvalidHash
       nil
     end
 
@@ -88,7 +88,7 @@ class ApiCredential < ApplicationRecord
     
     self.key ||= self.class.generate_api_key
     @raw_secret = self.class.generate_secret
-    self.secret_digest = BCrypt::Password.create(@raw_secret, cost: 12).to_s
+    self.secret_digest = ::BCrypt::Password.create(@raw_secret, cost: 12).to_s
   end
 
   def revoked_at_implies_inactive

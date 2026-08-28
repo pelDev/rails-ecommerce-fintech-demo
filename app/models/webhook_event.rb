@@ -100,6 +100,7 @@ class WebhookEvent < ApplicationRecord
     payload.is_a?(Hash) ? payload : JSON.parse(payload)
   rescue JSON::ParserError
     {}
+
   end
 
   # Class methods
@@ -172,7 +173,7 @@ class WebhookEvent < ApplicationRecord
   end
 
   def log_status_change
-    Rails.logger.info "Webhook #{provider_event_id} status changed: #{status_was} -> #{processing_status}"
+    Rails.logger.info "Webhook #{provider_event_id} status changed: #{processing_status_was} -> #{processing_status}"
   end
 
   def process_payload!

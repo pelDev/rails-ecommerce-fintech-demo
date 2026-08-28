@@ -21,6 +21,9 @@
         
           <%= link_to "API Credentials", api_credentials_path, 
               class: "px-3 py-2 rounded-md text-sm font-medium #{current_page?(api_credentials_path) ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}" %>
+        
+          <%= link_to "Test Console", new_order_path, 
+              class: "px-3 py-2 rounded-md text-sm font-medium #{current_page?(new_order_path) ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}" %>
         </div>
       </div>
 

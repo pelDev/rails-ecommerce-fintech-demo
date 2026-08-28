@@ -6,6 +6,16 @@ class Payment < ApplicationRecord
   MINIMUM_AMOUNT = 1
   MAXIMUM_AMOUNT = 999_999_999
 
+  # Define the enum mapping to match db values
+  enum :status, {
+    created: 0,
+    pending: 1,
+    processing: 2,
+    succeeded: 3,
+    failed: 4,
+    refunded: 5
+  }
+
   # Associations
   belongs_to :order
   belongs_to :merchant
@@ -56,6 +66,7 @@ class Payment < ApplicationRecord
     event :mark_pending do
       before do
         self.pending_at = Time.current
+        self.provider_reference = @provider_reference if @provider_reference
       end
 
       transitions from: :created, to: :pending, guard: :can_mark_pending?
@@ -64,6 +75,7 @@ class Payment < ApplicationRecord
     event :mark_processing do
       before do
         self.processing_at = Time.current
+        self.provider_reference = @provider_reference if @provider_reference
       end
 
       after do
@@ -132,6 +144,8 @@ class Payment < ApplicationRecord
     end
   end
 
+  scope :successful, -> { where(status: [ :succeeded ] ) }
+
   # Guards (business rules)
   def can_mark_pending?
     created? && order.present?
@@ -188,9 +202,21 @@ class Payment < ApplicationRecord
     succeed!
   end
 
+  def processing_with_reference(reference)
+    @provider_reference = reference
+    mark_processing!
+  end
+
   def fail_with_reason(reason)
     @failure_reason = reason
     fail!
+  end
+
+  def processing_time_in_seconds
+    return nil unless succeeded_at.present?
+    return nil unless created_at.present?
+    
+    (succeeded_at - created_at).round(2)
   end
 
   # Class methods
@@ -253,12 +279,14 @@ class Payment < ApplicationRecord
   end
 
   def update_order_status
+    return unless aasm.to_state == :succeeded
+    Rails.logger.info "Payment #{id} updating order to paid"
+
     order.mark_paid! if order.may_mark_paid?
   end
 
   def notify_merchant(event)
-    # Implement webhook notification logic
-    Rails.logger.info "Notifying merchant about payment event: #{event}"
+    MerchantNotifier.call(self, event)
   end
 
   def log_payment_success

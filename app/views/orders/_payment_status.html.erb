@@ -1,0 +1,14 @@
+<div id="payment_status_badge" class="p-4 rounded-md border text-xs font-mono transition-all duration-300 <%= payment_status_color(payment.status) %>">
+  <div class="flex justify-between items-center mb-1">
+    <span class="font-bold uppercase tracking-wider">Payment Status: <%= payment.status %></span>
+    <span class="text-[10px] text-gray-500">Event: <%= local_assigns[:event] || 'none' %></span>
+  </div>
+  <div class="space-y-1 text-gray-700">
+    <p><strong>Payment ID:</strong> <%= payment.id %></p>
+    <p><strong>Provider Ref:</strong> <%= payment.provider_reference || 'N/A' %></p>
+    <p><strong>Order Status:</strong> <%= payment.order.status %></p>
+    <% if payment.failure_reason.present? %>
+      <p class="text-red-600"><strong>Failure Reason:</strong> <%= payment.failure_reason %></p>
+    <% end %>
+  </div>
+</div>

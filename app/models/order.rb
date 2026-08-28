@@ -5,6 +5,17 @@ class Order < ApplicationRecord
   CURRENCIES = %w[USD EUR GBP JPY CAD AUD CHF CNY HKD NZD SEK KRW SGD NOK MXN INR BRL ZAR TRY RUB].freeze
   MINIMUM_AMOUNT = 1 # in cents
 
+  # Define the enum mapping to match db values
+  enum :status, {
+    pending: 0,
+    paid: 1,
+    shipped: 2,
+    delivered: 3,
+    cancelled: 4,
+    refunded: 5,
+    expired: 6
+  }
+
   # Associations
   belongs_to :merchant
   has_many :order_items, dependent: :destroy
@@ -25,7 +36,6 @@ class Order < ApplicationRecord
   validates :external_reference, uniqueness: true, allow_nil: true, length: { maximum: 255 }
 
   # Custom validations
-  validate :validate_status_transition, on: :update
   validate :validate_external_reference_format, if: -> { external_reference.present? }
 
   # AASM State Machine
@@ -170,7 +180,7 @@ class Order < ApplicationRecord
   end
 
   def total_paid
-    payments.completed.sum(:amount_cents)
+    payments.successful.sum(:amount_cents)
   end
 
   def fully_paid?
@@ -251,7 +261,7 @@ class Order < ApplicationRecord
   end
 
   def refund_payments
-    payments.completed.find_each(&:refund!)
+    payments.successful.find_each(&:refund!)
   end
 
   def log_order_creation
@@ -260,5 +270,32 @@ class Order < ApplicationRecord
 
   def log_order_status_change
     Rails.logger.info "Order #{id} status changed from #{status_was} to #{status}"
+  end
+
+  def normalize_currency
+    self.currency = currency.to_s.upcase.strip if currency.present?
+  end
+
+  def normalize_external_reference
+    return if external_reference.nil?
+    self.external_reference = external_reference.strip.presence
+  end
+
+  private
+
+  def validate_order_status_transition
+    return unless status_changed? && !new_record?
+
+    current = aasm.current_state
+    target = status.to_sym
+
+    # Check if the target state is reachable through any event
+    reachable = AASM::Core::TransitionCollection.new(
+      aasm, events: aasm.events(current)
+    ).transitions.any? { |t| t.to == target }
+
+    return if reachable || current == target
+
+    errors.add(:status, "cannot transition from #{current} to #{target}")
   end
 end

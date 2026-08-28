@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_27_182726) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_28_134443) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -98,16 +98,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_182726) do
     t.string "failure_reason"
     t.string "idempotency_key"
     t.bigint "merchant_id", null: false
+    t.jsonb "metadata", default: {}
     t.bigint "order_id", null: false
     t.string "payment_method"
     t.datetime "pending_at"
     t.datetime "processing_at"
     t.string "provider_reference"
     t.datetime "refunded_at"
+    t.string "request_ip"
     t.integer "retry_count", default: 0, null: false
     t.integer "status", default: 0, null: false
     t.datetime "succeeded_at"
     t.datetime "updated_at", null: false
+    t.string "user_agent"
     t.index ["created_at"], name: "index_payments_on_pending_created_at", where: "(status = 0)"
     t.index ["failed_at"], name: "index_payments_on_failed_at"
     t.index ["idempotency_key"], name: "index_payments_on_idempotency_key", where: "(idempotency_key IS NOT NULL)"
@@ -116,6 +119,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_182726) do
     t.index ["merchant_id", "currency", "status"], name: "index_payments_on_merchant_id_and_currency_and_status"
     t.index ["merchant_id", "status"], name: "index_payments_on_merchant_id_and_status"
     t.index ["merchant_id"], name: "index_payments_on_merchant_id"
+    t.index ["metadata"], name: "index_payments_on_metadata", using: :gin
     t.index ["order_id", "idempotency_key"], name: "index_payments_on_order_id_and_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
     t.index ["order_id", "status"], name: "index_payments_on_order_id_and_status"
     t.index ["order_id"], name: "index_payments_on_order_id"
@@ -127,9 +131,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_182726) do
     t.index ["succeeded_at"], name: "index_payments_on_succeeded_at"
     t.check_constraint "amount_cents > 0", name: "payments_amount_positive_check"
     t.check_constraint "currency::text = ANY (ARRAY['USD'::character varying::text, 'EUR'::character varying::text, 'GBP'::character varying::text, 'JPY'::character varying::text, 'CAD'::character varying::text, 'AUD'::character varying::text, 'CHF'::character varying::text, 'CNY'::character varying::text, 'HKD'::character varying::text, 'NZD'::character varying::text, 'SEK'::character varying::text, 'KRW'::character varying::text, 'SGD'::character varying::text, 'NOK'::character varying::text, 'MXN'::character varying::text, 'INR'::character varying::text, 'BRL'::character varying::text, 'ZAR'::character varying::text, 'TRY'::character varying::text, 'RUB'::character varying::text])", name: "payments_currency_valid_check"
-    t.check_constraint "status = 1 AND provider_reference IS NOT NULL OR status <> 1", name: "payments_provider_reference_check"
-    t.check_constraint "status = 3 AND failure_reason IS NOT NULL OR status <> 3 AND failure_reason IS NULL", name: "payments_failure_reason_check"
-    t.check_constraint "status = ANY (ARRAY[0, 1, 2, 3, 4])", name: "payments_status_valid_check"
+    t.check_constraint "status = 3 AND provider_reference IS NOT NULL OR status <> 3", name: "payments_provider_reference_check"
+    t.check_constraint "status = 4 AND failure_reason IS NOT NULL OR status <> 4 AND failure_reason IS NULL", name: "payments_failure_reason_check"
+    t.check_constraint "status = ANY (ARRAY[0, 1, 2, 3, 4, 5])", name: "payments_status_valid_check"
   end
 
   create_table "users", force: :cascade do |t|
